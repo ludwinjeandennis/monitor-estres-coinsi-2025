@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Estrés Académico - COINSI 2025</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .main-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .status-section {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .stress-indicator {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            color: white;
+        }
+
+        .stress-icon {
+            font-size: 80px;
+            margin: 20px 0;
+        }
+
+        .stress-label {
+            font-size: 32px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-top: 10px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .metric-card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 14px;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        .probabilities {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .prob-bar {
+            flex: 1;
+            text-align: center;
+        }
+
+        .prob-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .prob-fill {
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .prob-bajo { background: #4ade80; }
+        .prob-medio { background: #fbbf24; }
+        .prob-alto { background: #f87171; }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+
+        .btn-primary {
+            background: #4ade80;
+            color: #1e293b;
+        }
+
+        .btn-primary:hover {
+            background: #22c55e;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #f87171;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ef4444;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #64748b;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+            transform: translateY(-2px);
+        }
+
+        .recommendation {
+            background: #fef3c7;
+            border-left: 4px solid #fbbf24;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .recommendation h3 {
+            color: #92400e;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .recommendation p {
+            color: #78350f;
+            line-height: 1.6;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-active { background: #4ade80; }
+        .status-inactive { background: #94a3b8; }
+
+        .info-text {
+            text-align: center;
+            color: #64748b;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            opacity: 0.9;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .monitoring-active {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Monitor de Estrés Académico</h1>
+            <p>Sistema de Detección en Tiempo Real - COINSI 2025 UNAP</p>
+        </div>
+
+        <div class="main-card">
+            <div class="info-text" id="statusText">
+                <span class="status-indicator status-inactive"></span>
+                Haz clic en "Iniciar Monitoreo" para comenzar
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" id="startBtn" onclick="startMonitoring()">
+                    ▶️ Iniciar Monitoreo
+                </button>
+                <button class="btn btn-danger" id="stopBtn" onclick="stopMonitoring()" style="display: none;">
+                    ⏸️ Detener
+                </button>
+                <button class="btn btn-secondary" onclick="analyzeNow()">
+                    🔄 Analizar Ahora
+                </button>
+            </div>
+        </div>
+
+        <div class="main-card" id="resultsSection" style="display: none;">
+            <div class="status-section">
+                <div class="stress-indicator">
+                    <div>Estado Actual</div>
+                    <div class="stress-icon" id="stressIcon">🟢</div>
+                    <div class="stress-label" id="stressLabel">BAJO</div>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="keysPerMin">0</div>
+                        <div class="metric-label">Teclas/Minuto</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="errorRate">0%</div>
+                        <div class="metric-label">Tasa de Error</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="clicksPerMin">0</div>
+                        <div class="metric-label">Clicks/Minuto</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="mouseSpeed">0</div>
+                        <div class="metric-label">Velocidad Mouse</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="probabilities">
+                <div class="prob-bar">
+                    <div class="prob-label">Bajo</div>
+                    <div class="prob-fill prob-bajo" id="probBajo">0%</div>
+                </div>
+                <div class="prob-bar">
+                    <div class="prob-label">Medio</div>
+                    <div class="prob-fill prob-medio" id="probMedio">0%</div>
+                </div>
+                <div class="prob-bar">
+                    <div class="prob-label">Alto</div>
+                    <div class="prob-fill prob-alto" id="probAlto">0%</div>
+                </div>
+            </div>
+
+            <div class="recommendation" id="recommendation" style="display: none;">
+                <h3>
+                    <span>💡</span>
+                    <span>Recomendación</span>
+                </h3>
+                <p id="recommendationText"></p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>COINSI 2025 - Escuela Profesional de Ingeniería de Sistemas</p>
+            <p>Universidad Nacional del Altiplano - Puno</p>
+        </div>
+    </div>
+
+    <script>
+        // Configuración
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:5000/api'
+            : '/api'; // Para producción
+
+        let isMonitoring = false;
+        let sessionId = null;
+        let monitoringInterval = null;
+        
+        // Almacenamiento de eventos
+        let events = {
+            keys: [],
+            mouse: [],
+            clicks: 0
+        };
+
+        // Recomendaciones por nivel
+        const recommendations = {
+            0: '¡Excelente! Mantén este ritmo de trabajo. Estás en tu zona óptima de productividad.',
+            1: 'Considera hacer una pausa breve de 5-10 minutos. Camina un poco o toma agua.',
+            2: '⚠️ TOMA UN DESCANSO AHORA. Date 10-15 minutos para relajarte. Tu bienestar es importante.'
+        };
+
+        // Iniciar monitoreo
+        async function startMonitoring() {
+            isMonitoring = true;
+            sessionId = Date.now().toString();
+            
+            // Actualizar UI
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'block';
+            document.getElementById('statusText').innerHTML = 
+                '<span class="status-indicator status-active monitoring-active"></span>Monitoreando... Se analizará cada 2 minutos';
+            
+            // Iniciar sesión en el servidor
+            try {
+                await fetch(`${API_URL}/start_session`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+            } catch (error) {
+                console.error('Error al iniciar sesión:', error);
+            }
+            
+            // Capturar eventos
+            document.addEventListener('keydown', captureKeyEvent);
+            document.addEventListener('mousemove', captureMouseEvent);
+            document.addEventListener('click', captureClickEvent);
+            
+            // Analizar cada 2 minutos
+            monitoringInterval = setInterval(analyzeNow, 120000);
+            
+            // Análisis inicial después de 10 segundos
+            setTimeout(analyzeNow, 10000);
+        }
+
+        // Detener monitoreo
+        function stopMonitoring() {
+            isMonitoring = false;
+            
+            // Limpiar eventos
+            document.removeEventListener('keydown', captureKeyEvent);
+            document.removeEventListener('mousemove', captureMouseEvent);
+            document.removeEventListener('click', captureClickEvent);
+            
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+            }
+            
+            // Actualizar UI
+            document.getElementById('startBtn').style.display = 'block';
+            document.getElementById('stopBtn').style.display = 'none';
+            document.getElementById('statusText').innerHTML = 
+                '<span class="status-indicator status-inactive"></span>Monitoreo detenido';
+            
+            // Limpiar eventos
+            events = { keys: [], mouse: [], clicks: 0 };
+        }
+
+        // Capturar teclas
+        function captureKeyEvent(e) {
+            if (!isMonitoring) return;
+            events.keys.push({
+                timestamp: Date.now(),
+                key: e.key,
+                isError: e.key === 'Backspace' || e.key === 'Delete'
+            });
+        }
+
+        // Capturar mouse
+        let lastMousePos = { x: 0, y: 0 };
+        let lastMouseTime = Date.now();
+        
+        function captureMouseEvent(e) {
+            if (!isMonitoring) return;
+            
+            const now = Date.now();
+            const dx = e.clientX - lastMousePos.x;
+            const dy = e.clientY - lastMousePos.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            const time = (now - lastMouseTime) / 1000;
+            const speed = time > 0 ? distance / time : 0;
+            
+            events.mouse.push({
+                timestamp: now,
+                distance: distance,
+                speed: speed
+            });
+            
+            lastMousePos = { x: e.clientX, y: e.clientY };
+            lastMouseTime = now;
+        }
+
+        // Capturar clicks
+        function captureClickEvent() {
+            if (!isMonitoring) return;
+            events.clicks++;
+        }
+
+        // Analizar ahora
+        async function analyzeNow() {
+            if (events.keys.length < 10 || events.mouse.length < 10) {
+                alert('Necesitas usar el teclado y mouse un poco más para obtener una lectura precisa.');
+                return;
+            }
+
+            const features = calculateFeatures();
+            
+            try {
+                const response = await fetch(`${API_URL}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        features: features
+                    })
+                });
+                
+                const result = await response.json();
+                updateUI(result);
+                
+            } catch (error) {
+                console.error('Error al analizar:', error);
+                alert('Error al conectar con el servidor. Asegúrate de que esté ejecutándose.');
+            }
+        }
+
+        // Calcular características
+        function calculateFeatures() {
+            const duration = 120; // 2 minutos
+            
+            // Teclado
+            const keyLatencies = [];
+            for (let i = 1; i < events.keys.length; i++) {
+                const latency = events.keys[i].timestamp - events.keys[i-1].timestamp;
+                keyLatencies.push(latency);
+            }
+            
+            const errors = events.keys.filter(k => k.isError).length;
+            
+            // Mouse
+            const mouseSpeeds = events.mouse.map(m => m.speed).filter(s => s > 0);
+            const totalDistance = events.mouse.reduce((sum, m) => sum + m.distance, 0);
+            
+            return {
+                keys_per_minute: (events.keys.length / duration) * 60,
+                avg_key_latency: keyLatencies.length > 0 ? 
+                    keyLatencies.reduce((a,b) => a+b, 0) / keyLatencies.length : 0,
+                std_key_latency: calculateStd(keyLatencies),
+                error_rate: events.keys.length > 0 ? errors / events.keys.length : 0,
+                clicks_per_minute: (events.clicks / duration) * 60,
+                total_mouse_distance: totalDistance,
+                avg_mouse_speed: mouseSpeeds.length > 0 ?
+                    mouseSpeeds.reduce((a,b) => a+b, 0) / mouseSpeeds.length : 0
+            };
+        }
+
+        // Calcular desviación estándar
+        function calculateStd(arr) {
+            if (arr.length === 0) return 0;
+            const mean = arr.reduce((a,b) => a+b, 0) / arr.length;
+            const variance = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
+            return Math.sqrt(variance);
+        }
+
+        // Actualizar interfaz
+        function updateUI(result) {
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            const icons = ['🟢', '🟡', '🔴'];
+            const labels = ['BAJO', 'MEDIO', 'ALTO'];
+            
+            document.getElementById('stressIcon').textContent = icons[result.stress_level];
+            document.getElementById('stressLabel').textContent = labels[result.stress_level];
+            
+            // Probabilidades
+            document.getElementById('probBajo').textContent = 
+                (result.probabilities.bajo * 100).toFixed(0) + '%';
+            document.getElementById('probMedio').textContent = 
+                (result.probabilities.medio * 100).toFixed(0) + '%';
+            document.getElementById('probAlto').textContent = 
+                (result.probabilities.alto * 100).toFixed(0) + '%';
+            
+            // Métricas
+            document.getElementById('keysPerMin').textContent = 
+                result.features.keys_per_minute.toFixed(0);
+            document.getElementById('errorRate').textContent = 
+                (result.features.error_rate * 100).toFixed(1) + '%';
+            document.getElementById('clicksPerMin').textContent = 
+                result.features.clicks_per_minute.toFixed(0);
+            document.getElementById('mouseSpeed').textContent = 
+                result.features.avg_mouse_speed.toFixed(0);
+            
+            // Recomendación
+            if (result.stress_level > 0) {
+                document.getElementById('recommendation').style.display = 'block';
+                document.getElementById('recommendationText').textContent = 
+                    recommendations[result.stress_level];
+            } else {
+                document.getElementById('recommendation').style.display = 'none';
+            }
+            
+            // Reiniciar contadores
+            events = { keys: [], mouse: [], clicks: 0 };
+        }
+    </script>
+</body>
+</html>
