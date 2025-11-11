@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "description": "Detecta tu nivel de estrés en tiempo real mientras estudias - COINSI 2025 UNAP",
   "permissions": ["storage", "notifications"],
-  "host_permissions": ["http://localhost:5000/*"],
+  "host_permissions": ["https://monitor-estres-coinsi-2025.onrender.com/*"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
