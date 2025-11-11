@@ -1,7 +1,6 @@
 """
 Aplicación Web Completa - Monitor de Estrés Académico
-Deploy en Render.com o Railway.app
-COINSI 2025 - UNAP
+Deploy en Render.com - COINSI 2025 - UNAP
 """
 
 from flask import Flask, render_template, request, jsonify
@@ -31,20 +30,26 @@ except Exception as e:
     model = None
     scaler = None
 
-# Almacenamiento temporal de sesiones (en producción usar base de datos)
+# Almacenamiento temporal de sesiones
 sessions = {}
 
 def load_data():
     """Carga datos históricos"""
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            return json.load(f)
+    try:
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, 'r') as f:
+                return json.load(f)
+    except:
+        pass
     return []
 
 def save_data(data):
     """Guarda datos históricos"""
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+    try:
+        with open(DATA_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except:
+        pass
 
 @app.route('/')
 def index():
@@ -54,59 +59,83 @@ def index():
 @app.route('/api/start_session', methods=['POST'])
 def start_session():
     """Inicia una nueva sesión de monitoreo"""
-    data = request.json
-    session_id = data.get('session_id', str(datetime.now().timestamp()))
-    
-    sessions[session_id] = {
-        'start_time': datetime.now().isoformat(),
-        'events': [],
-        'analyses': []
-    }
-    
-    return jsonify({
-        'success': True,
-        'session_id': session_id,
-        'message': 'Sesión iniciada'
-    })
+    try:
+        data = request.get_json() or {}
+        session_id = data.get('session_id', str(datetime.now().timestamp()))
+        
+        sessions[session_id] = {
+            'start_time': datetime.now().isoformat(),
+            'events': [],
+            'analyses': []
+        }
+        
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'message': 'Sesión iniciada'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/record_events', methods=['POST'])
 def record_events():
     """Registra eventos de teclado y mouse"""
-    data = request.json
-    session_id = data.get('session_id')
-    events = data.get('events', [])
-    
-    if session_id not in sessions:
-        return jsonify({'error': 'Sesión no encontrada'}), 404
-    
-    sessions[session_id]['events'].extend(events)
-    
-    return jsonify({
-        'success': True,
-        'events_recorded': len(events)
-    })
+    try:
+        data = request.get_json() or {}
+        session_id = data.get('session_id')
+        events = data.get('events', [])
+        
+        if not session_id or session_id not in sessions:
+            return jsonify({'error': 'Sesión no encontrada'}), 404
+        
+        sessions[session_id]['events'].extend(events)
+        
+        return jsonify({
+            'success': True,
+            'events_recorded': len(events),
+            'total_events': len(sessions[session_id]['events'])
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_stress():
     """Analiza el nivel de estrés basado en los eventos"""
-    data = request.json
-    features = data.get('features')
-    
-    if not model or not scaler:
-        return jsonify({'error': 'Modelo no disponible'}), 500
-    
-    if not features:
-        return jsonify({'error': 'Features requeridas'}), 400
-    
-    # Preparar features para el modelo
-    feature_order = [
-        'keys_per_minute', 'avg_key_latency', 'std_key_latency',
-        'error_rate', 'clicks_per_minute', 'total_mouse_distance',
-        'avg_mouse_speed'
-    ]
-    
     try:
-        X = np.array([[features[f] for f in feature_order]])
+        data = request.get_json() or {}
+        features = data.get('features', {})
+        
+        if not model or not scaler:
+            return jsonify({
+                'success': False,
+                'error': 'Modelo no disponible',
+                'fallback_prediction': 1  # MEDIO como fallback
+            })
+        
+        # Features por defecto si no vienen
+        default_features = {
+            'keys_per_minute': 45,
+            'avg_key_latency': 150,
+            'std_key_latency': 25,
+            'error_rate': 0.02,
+            'clicks_per_minute': 12,
+            'total_mouse_distance': 1200,
+            'avg_mouse_speed': 350
+        }
+        
+        # Usar features proporcionadas o defaults
+        for key, value in default_features.items():
+            if key not in features:
+                features[key] = value
+        
+        # Preparar features para el modelo
+        feature_order = [
+            'keys_per_minute', 'avg_key_latency', 'std_key_latency',
+            'error_rate', 'clicks_per_minute', 'total_mouse_distance',
+            'avg_mouse_speed'
+        ]
+        
+        X = np.array([[features.get(f, 0) for f in feature_order]])
         
         # Normalizar y predecir
         X_scaled = scaler.transform(X)
@@ -114,6 +143,7 @@ def analyze_stress():
         probabilities = model.predict_proba(X_scaled)[0]
         
         result = {
+            'success': True,
             'stress_level': prediction,
             'stress_label': ['BAJO', 'MEDIO', 'ALTO'][prediction],
             'probabilities': {
@@ -122,7 +152,7 @@ def analyze_stress():
                 'alto': float(probabilities[2])
             },
             'timestamp': datetime.now().isoformat(),
-            'features': features
+            'features_used': features
         }
         
         # Guardar análisis
@@ -138,43 +168,120 @@ def analyze_stress():
         return jsonify(result)
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'fallback_prediction': 1,
+            'fallback_label': 'MEDIO'
+        })
+
+@app.route('/api/test_analysis', methods=['POST'])
+def test_analysis():
+    """Endpoint de prueba para verificar que el análisis funciona"""
+    test_features = {
+        'keys_per_minute': 85,
+        'avg_key_latency': 85,
+        'std_key_latency': 35,
+        'error_rate': 0.08,
+        'clicks_per_minute': 25,
+        'total_mouse_distance': 2800,
+        'avg_mouse_speed': 650
+    }
+    
+    return analyze_stress_with_features(test_features)
+
+def analyze_stress_with_features(features):
+    """Función auxiliar para análisis"""
+    if not model or not scaler:
+        return {
+            'success': False,
+            'error': 'Modelo no disponible',
+            'stress_level': 1,
+            'stress_label': 'MEDIO'
+        }
+    
+    try:
+        feature_order = [
+            'keys_per_minute', 'avg_key_latency', 'std_key_latency',
+            'error_rate', 'clicks_per_minute', 'total_mouse_distance',
+            'avg_mouse_speed'
+        ]
+        
+        X = np.array([[features.get(f, 0) for f in feature_order]])
+        X_scaled = scaler.transform(X)
+        prediction = int(model.predict(X_scaled)[0])
+        probabilities = model.predict_proba(X_scaled)[0]
+        
+        return {
+            'success': True,
+            'stress_level': prediction,
+            'stress_label': ['BAJO', 'MEDIO', 'ALTO'][prediction],
+            'probabilities': {
+                'bajo': float(probabilities[0]),
+                'medio': float(probabilities[1]),
+                'alto': float(probabilities[2])
+            },
+            'timestamp': datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'stress_level': 1,
+            'stress_label': 'MEDIO'
+        }
 
 @app.route('/api/history', methods=['GET'])
 def get_history():
     """Obtiene historial de análisis"""
-    limit = request.args.get('limit', 10, type=int)
-    history = load_data()
-    return jsonify(history[-limit:])
-
-@app.route('/api/session/<session_id>', methods=['GET'])
-def get_session(session_id):
-    """Obtiene datos de una sesión"""
-    if session_id not in sessions:
-        return jsonify({'error': 'Sesión no encontrada'}), 404
-    
-    return jsonify(sessions[session_id])
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        history = load_data()
+        return jsonify({
+            'success': True,
+            'data': history[-limit:],
+            'total': len(history)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     """Obtiene estadísticas generales"""
-    history = load_data()
-    
-    if not history:
+    try:
+        history = load_data()
+        
+        if not history:
+            return jsonify({
+                'success': True,
+                'total_analyses': 0,
+                'distribution': {'bajo': 0, 'medio': 0, 'alto': 0}
+            })
+        
+        distribution = {'bajo': 0, 'medio': 0, 'alto': 0}
+        for item in history:
+            if isinstance(item, dict) and 'stress_label' in item:
+                level = item['stress_label'].lower()
+                distribution[level] = distribution.get(level, 0) + 1
+        
         return jsonify({
-            'total_analyses': 0,
-            'distribution': {'bajo': 0, 'medio': 0, 'alto': 0}
+            'success': True,
+            'total_analyses': len(history),
+            'distribution': distribution,
+            'model_loaded': model is not None
         })
-    
-    distribution = {'bajo': 0, 'medio': 0, 'alto': 0}
-    for item in history:
-        level = item['stress_label'].lower()
-        distribution[level] = distribution.get(level, 0) + 1
-    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/test', methods=['GET'])
+def test_endpoint():
+    """Endpoint de prueba"""
     return jsonify({
-        'total_analyses': len(history),
-        'distribution': distribution,
-        'last_analysis': history[-1] if history else None
+        'success': True,
+        'message': 'API funcionando correctamente',
+        'timestamp': datetime.now().isoformat(),
+        'model_loaded': model is not None,
+        'total_sessions': len(sessions)
     })
 
 @app.route('/health', methods=['GET'])
@@ -183,9 +290,10 @@ def health():
     return jsonify({
         'status': 'healthy',
         'model_loaded': model is not None,
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'python_version': os.environ.get('PYTHON_VERSION', 'unknown')
     })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=False)

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: monitor-estres-unap
+    env: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app

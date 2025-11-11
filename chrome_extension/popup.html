@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Estrés</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 350px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .stress-indicator {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .stress-level {
+            font-size: 48px;
+            margin: 10px 0;
+        }
+
+        .stress-label {
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .bajo { color: #4ade80; }
+        .medio { color: #fbbf24; }
+        .alto { color: #f87171; }
+
+        .probabilities {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+        }
+
+        .prob-item {
+            text-align: center;
+        }
+
+        .prob-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .prob-label {
+            font-size: 11px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .metric {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            opacity: 0.8;
+        }
+
+        .recommendation {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            border-left: 4px solid #fbbf24;
+        }
+
+        .recommendation-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .recommendation-text {
+            font-size: 13px;
+            line-height: 1.5;
+            opacity: 0.95;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-start {
+            background: #4ade80;
+            color: #1e293b;
+        }
+
+        .btn-start:hover {
+            background: #22c55e;
+            transform: translateY(-2px);
+        }
+
+        .btn-stop {
+            background: #f87171;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #ef4444;
+            transform: translateY(-2px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            text-align: center;
+            padding: 20px;
+            background: rgba(239, 68, 68, 0.2);
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .last-update {
+            text-align: center;
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 Monitor de Estrés</h1>
+            <p>Sistema de Detección - UNAP</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Conectando con el monitor...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;">
+            <p>⚠️ No se pudo conectar con la aplicación</p>
+            <p style="font-size: 10px; margin-top: 5px;">Asegúrate de que el monitor esté ejecutándose</p>
+        </div>
+
+        <div id="content" style="display: none;">
+            <div class="status-card">
+                <div class="stress-indicator">
+                    <div id="stressIcon" class="stress-level">🟢</div>
+                    <div id="stressLabel" class="stress-label bajo">BAJO</div>
+                </div>
+
+                <div class="probabilities">
+                    <div class="prob-item">
+                        <div id="probBajo" class="prob-value">0%</div>
+                        <div class="prob-label">Bajo</div>
+                    </div>
+                    <div class="prob-item">
+                        <div id="probMedio" class="prob-value">0%</div>
+                        <div class="prob-label">Medio</div>
+                    </div>
+                    <div class="prob-item">
+                        <div id="probAlto" class="prob-value">0%</div>
+                        <div class="prob-label">Alto</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <div class="metrics">
+                    <div class="metric">
+                        <div id="keysPerMin" class="metric-value">0</div>
+                        <div class="metric-label">Teclas/min</div>
+                    </div>
+                    <div class="metric">
+                        <div id="errorRate" class="metric-value">0%</div>
+                        <div class="metric-label">Tasa de Error</div>
+                    </div>
+                    <div class="metric">
+                        <div id="clicksPerMin" class="metric-value">0</div>
+                        <div class="metric-label">Clicks/min</div>
+                    </div>
+                    <div class="metric">
+                        <div id="mouseSpeed" class="metric-value">0</div>
+                        <div class="metric-label">Velocidad Mouse</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="recommendation" class="recommendation" style="display: none;">
+                <div class="recommendation-title">
+                    <span>💡</span>
+                    <span>Recomendación</span>
+                </div>
+                <div id="recommendationText" class="recommendation-text"></div>
+            </div>
+
+            <div class="last-update" id="lastUpdate">
+                Última actualización: --
+            </div>
+        </div>
+
+        <div class="footer">
+            COINSI 2025 - Ingeniería de Sistemas UNAP
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
