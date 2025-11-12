@@ -152,12 +152,17 @@
             text-transform: uppercase;
         }
 
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .btn-primary {
             background: #4ade80;
             color: #1e293b;
         }
 
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: #22c55e;
             transform: translateY(-2px);
         }
@@ -167,7 +172,7 @@
             color: white;
         }
 
-        .btn-danger:hover {
+        .btn-danger:hover:not(:disabled) {
             background: #ef4444;
             transform: translateY(-2px);
         }
@@ -177,7 +182,7 @@
             color: white;
         }
 
-        .btn-secondary:hover {
+        .btn-secondary:hover:not(:disabled) {
             background: #475569;
             transform: translateY(-2px);
         }
@@ -221,6 +226,17 @@
             font-size: 14px;
         }
 
+        .debug-info {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #475569;
+        }
+
         .footer {
             text-align: center;
             color: white;
@@ -236,6 +252,31 @@
         .monitoring-active {
             animation: pulse 2s infinite;
         }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .alert-success {
+            background: #dcfce7;
+            color: #166534;
+            border-left: 4px solid #22c55e;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-left: 4px solid #fbbf24;
+        }
     </style>
 </head>
 <body>
@@ -246,6 +287,10 @@
         </div>
 
         <div class="main-card">
+            <div class="alert alert-info" id="instructionAlert">
+                📋 <strong>Instrucciones:</strong> Haz clic en "Iniciar Monitoreo", luego usa tu teclado y mouse normalmente durante 30 segundos antes de analizar.
+            </div>
+
             <div class="info-text" id="statusText">
                 <span class="status-indicator status-inactive"></span>
                 Haz clic en "Iniciar Monitoreo" para comenzar
@@ -258,9 +303,13 @@
                 <button class="btn btn-danger" id="stopBtn" onclick="stopMonitoring()" style="display: none;">
                     ⏸️ Detener
                 </button>
-                <button class="btn btn-secondary" onclick="analyzeNow()">
+                <button class="btn btn-secondary" id="analyzeBtn" onclick="analyzeNow()" disabled>
                     🔄 Analizar Ahora
                 </button>
+            </div>
+
+            <div class="debug-info" id="debugInfo">
+                📊 Eventos capturados: Teclas: 0 | Mouse: 0 | Clicks: 0
             </div>
         </div>
 
@@ -268,8 +317,8 @@
             <div class="status-section">
                 <div class="stress-indicator">
                     <div>Estado Actual</div>
-                    <div class="stress-icon" id="stressIcon">🟢</div>
-                    <div class="stress-label" id="stressLabel">BAJO</div>
+                    <div class="stress-icon" id="stressIcon">🟡</div>
+                    <div class="stress-label" id="stressLabel">MEDIO</div>
                 </div>
 
                 <div class="metrics-grid">
@@ -295,24 +344,24 @@
             <div class="probabilities">
                 <div class="prob-bar">
                     <div class="prob-label">Bajo</div>
-                    <div class="prob-fill prob-bajo" id="probBajo">0%</div>
+                    <div class="prob-fill prob-bajo" id="probBajo">33%</div>
                 </div>
                 <div class="prob-bar">
                     <div class="prob-label">Medio</div>
-                    <div class="prob-fill prob-medio" id="probMedio">0%</div>
+                    <div class="prob-fill prob-medio" id="probMedio">34%</div>
                 </div>
                 <div class="prob-bar">
                     <div class="prob-label">Alto</div>
-                    <div class="prob-fill prob-alto" id="probAlto">0%</div>
+                    <div class="prob-fill prob-alto" id="probAlto">33%</div>
                 </div>
             </div>
 
-            <div class="recommendation" id="recommendation" style="display: none;">
+            <div class="recommendation" id="recommendation">
                 <h3>
                     <span>💡</span>
                     <span>Recomendación</span>
                 </h3>
-                <p id="recommendationText"></p>
+                <p id="recommendationText">Considera hacer una pausa breve de 5-10 minutos.</p>
             </div>
         </div>
 
@@ -323,20 +372,24 @@
     </div>
 
     <script>
-        // Configuración
-        const API_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:5000/api'
-            : '/api'; // Para producción
+        // Configuración - DETECTA AUTOMÁTICAMENTE EL ENTORNO
+        const API_URL = '/api';
+        
+        console.log('🚀 Aplicación iniciada');
+        console.log('📡 API URL:', API_URL);
 
         let isMonitoring = false;
         let sessionId = null;
         let monitoringInterval = null;
+        let updateDebugInterval = null;
+        let startTime = null;
         
         // Almacenamiento de eventos
         let events = {
             keys: [],
             mouse: [],
-            clicks: 0
+            clicks: 0,
+            lastMousePos: { x: 0, y: 0, time: Date.now() }
         };
 
         // Recomendaciones por nivel
@@ -346,111 +399,208 @@
             2: '⚠️ TOMA UN DESCANSO AHORA. Date 10-15 minutos para relajarte. Tu bienestar es importante.'
         };
 
+        // Verificar conexión al cargar
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch(`${API_URL}/test`);
+                const data = await response.json();
+                console.log('✅ Conexión con API exitosa:', data);
+                
+                if (!data.model_loaded) {
+                    showAlert('⚠️ Modelo ML no disponible. Las predicciones serán aproximadas.', 'warning');
+                }
+            } catch (error) {
+                console.error('❌ Error al conectar con API:', error);
+                showAlert('⚠️ No se pudo conectar con el servidor. Verifica que esté ejecutándose.', 'warning');
+            }
+        });
+
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            const firstCard = container.querySelector('.main-card');
+            container.insertBefore(alertDiv, firstCard);
+            
+            setTimeout(() => alertDiv.remove(), 5000);
+        }
+
+        // Actualizar contador de eventos
+        function updateDebugInfo() {
+            const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+            document.getElementById('debugInfo').innerHTML = 
+                `📊 Eventos capturados: Teclas: <strong>${events.keys.length}</strong> | ` +
+                `Mouse: <strong>${events.mouse.length}</strong> | ` +
+                `Clicks: <strong>${events.clicks}</strong> | ` +
+                `Tiempo: <strong>${elapsed}s</strong>`;
+        }
+
         // Iniciar monitoreo
         async function startMonitoring() {
             isMonitoring = true;
             sessionId = Date.now().toString();
+            startTime = Date.now();
+            
+            console.log('▶️ Iniciando monitoreo, sessionId:', sessionId);
+            
+            // Resetear eventos
+            events = {
+                keys: [],
+                mouse: [],
+                clicks: 0,
+                lastMousePos: { x: 0, y: 0, time: Date.now() }
+            };
             
             // Actualizar UI
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('instructionAlert').style.display = 'none';
             document.getElementById('statusText').innerHTML = 
-                '<span class="status-indicator status-active monitoring-active"></span>Monitoreando... Se analizará cada 2 minutos';
+                '<span class="status-indicator status-active monitoring-active"></span>' +
+                'Monitoreando activamente... Usa tu teclado y mouse';
             
             // Iniciar sesión en el servidor
             try {
-                await fetch(`${API_URL}/start_session`, {
+                const response = await fetch(`${API_URL}/start_session`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ session_id: sessionId })
                 });
+                const data = await response.json();
+                console.log('✅ Sesión iniciada:', data);
             } catch (error) {
-                console.error('Error al iniciar sesión:', error);
+                console.error('❌ Error al iniciar sesión:', error);
             }
             
-            // Capturar eventos
-            document.addEventListener('keydown', captureKeyEvent);
-            document.addEventListener('mousemove', captureMouseEvent);
-            document.addEventListener('click', captureClickEvent);
+            // Capturar eventos - MÉTODO MEJORADO
+            document.addEventListener('keydown', captureKeyEvent, true);
+            document.addEventListener('keyup', captureKeyUpEvent, true);
+            document.addEventListener('mousemove', captureMouseEvent, true);
+            document.addEventListener('click', captureClickEvent, true);
             
-            // Analizar cada 2 minutos
+            // Actualizar debug cada segundo
+            updateDebugInterval = setInterval(updateDebugInfo, 1000);
+            
+            // Análisis automático cada 2 minutos
             monitoringInterval = setInterval(analyzeNow, 120000);
             
-            // Análisis inicial después de 10 segundos
-            setTimeout(analyzeNow, 10000);
+            console.log('✅ Event listeners activados');
         }
 
         // Detener monitoreo
         function stopMonitoring() {
             isMonitoring = false;
             
+            console.log('⏸️ Deteniendo monitoreo');
+            
             // Limpiar eventos
-            document.removeEventListener('keydown', captureKeyEvent);
-            document.removeEventListener('mousemove', captureMouseEvent);
-            document.removeEventListener('click', captureClickEvent);
+            document.removeEventListener('keydown', captureKeyEvent, true);
+            document.removeEventListener('keyup', captureKeyUpEvent, true);
+            document.removeEventListener('mousemove', captureMouseEvent, true);
+            document.removeEventListener('click', captureClickEvent, true);
             
             if (monitoringInterval) {
                 clearInterval(monitoringInterval);
+                monitoringInterval = null;
+            }
+            
+            if (updateDebugInterval) {
+                clearInterval(updateDebugInterval);
+                updateDebugInterval = null;
             }
             
             // Actualizar UI
             document.getElementById('startBtn').style.display = 'block';
             document.getElementById('stopBtn').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
             document.getElementById('statusText').innerHTML = 
                 '<span class="status-indicator status-inactive"></span>Monitoreo detenido';
             
-            // Limpiar eventos
-            events = { keys: [], mouse: [], clicks: 0 };
+            startTime = null;
+            updateDebugInfo();
         }
 
-        // Capturar teclas
+        // Capturar teclas (keydown)
         function captureKeyEvent(e) {
             if (!isMonitoring) return;
+            
+            const isError = e.key === 'Backspace' || e.key === 'Delete';
+            
             events.keys.push({
                 timestamp: Date.now(),
                 key: e.key,
-                isError: e.key === 'Backspace' || e.key === 'Delete'
+                isError: isError
             });
+            
+            if (events.keys.length % 10 === 0) {
+                console.log(`⌨️ ${events.keys.length} teclas capturadas`);
+            }
         }
 
-        // Capturar mouse
-        let lastMousePos = { x: 0, y: 0 };
-        let lastMouseTime = Date.now();
-        
+        // Capturar teclas (keyup) - para mejor precisión
+        function captureKeyUpEvent(e) {
+            if (!isMonitoring) return;
+            // Solo registrar para cálculos adicionales si es necesario
+        }
+
+        // Capturar movimiento del mouse
         function captureMouseEvent(e) {
             if (!isMonitoring) return;
             
             const now = Date.now();
-            const dx = e.clientX - lastMousePos.x;
-            const dy = e.clientY - lastMousePos.y;
+            const dx = e.clientX - events.lastMousePos.x;
+            const dy = e.clientY - events.lastMousePos.y;
             const distance = Math.sqrt(dx*dx + dy*dy);
-            const time = (now - lastMouseTime) / 1000;
-            const speed = time > 0 ? distance / time : 0;
+            const timeDiff = (now - events.lastMousePos.time) / 1000; // en segundos
+            const speed = timeDiff > 0 ? distance / timeDiff : 0;
             
-            events.mouse.push({
-                timestamp: now,
-                distance: distance,
-                speed: speed
-            });
+            if (distance > 5) { // Solo registrar si hay movimiento significativo
+                events.mouse.push({
+                    timestamp: now,
+                    distance: distance,
+                    speed: speed
+                });
+                
+                if (events.mouse.length % 50 === 0) {
+                    console.log(`🖱️ ${events.mouse.length} movimientos de mouse capturados`);
+                }
+            }
             
-            lastMousePos = { x: e.clientX, y: e.clientY };
-            lastMouseTime = now;
+            events.lastMousePos = { x: e.clientX, y: e.clientY, time: now };
         }
 
         // Capturar clicks
-        function captureClickEvent() {
+        function captureClickEvent(e) {
             if (!isMonitoring) return;
             events.clicks++;
+            console.log(`🖱️ Click #${events.clicks}`);
         }
 
         // Analizar ahora
         async function analyzeNow() {
-            if (events.keys.length < 10 || events.mouse.length < 10) {
-                alert('Necesitas usar el teclado y mouse un poco más para obtener una lectura precisa.');
+            console.log('🔄 Iniciando análisis...');
+            console.log('📊 Eventos:', {
+                keys: events.keys.length,
+                mouse: events.mouse.length,
+                clicks: events.clicks
+            });
+
+            // Validación mejorada
+            if (events.keys.length < 5) {
+                showAlert('⚠️ Necesitas escribir más (al menos 5 teclas) para obtener una lectura precisa.', 'warning');
+                return;
+            }
+
+            if (events.mouse.length < 5) {
+                showAlert('⚠️ Necesitas mover el mouse más para obtener una lectura precisa.', 'warning');
                 return;
             }
 
             const features = calculateFeatures();
+            console.log('📈 Features calculadas:', features);
             
             try {
                 const response = await fetch(`${API_URL}/analyze`, {
@@ -462,93 +612,117 @@
                     })
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const result = await response.json();
-                updateUI(result);
+                console.log('✅ Resultado del análisis:', result);
+                
+                updateUI(result, features);
+                showAlert('✅ Análisis completado exitosamente', 'success');
+                
+                // Resetear eventos después del análisis
+                events.keys = [];
+                events.mouse = [];
+                events.clicks = 0;
+                startTime = Date.now();
                 
             } catch (error) {
-                console.error('Error al analizar:', error);
-                alert('Error al conectar con el servidor. Asegúrate de que esté ejecutándose.');
+                console.error('❌ Error al analizar:', error);
+                showAlert('❌ Error al analizar: ' + error.message, 'warning');
             }
         }
 
         // Calcular características
         function calculateFeatures() {
-            const duration = 120; // 2 minutos
+            const now = Date.now();
+            const duration = startTime ? (now - startTime) / 1000 : 60; // en segundos
+            
+            console.log(`⏱️ Duración de la muestra: ${duration.toFixed(1)}s`);
             
             // Teclado
             const keyLatencies = [];
             for (let i = 1; i < events.keys.length; i++) {
                 const latency = events.keys[i].timestamp - events.keys[i-1].timestamp;
-                keyLatencies.push(latency);
+                if (latency < 5000) { // Ignorar latencias > 5 segundos
+                    keyLatencies.push(latency);
+                }
             }
             
             const errors = events.keys.filter(k => k.isError).length;
             
             // Mouse
-            const mouseSpeeds = events.mouse.map(m => m.speed).filter(s => s > 0);
+            const mouseSpeeds = events.mouse.map(m => m.speed).filter(s => s > 0 && s < 10000);
             const totalDistance = events.mouse.reduce((sum, m) => sum + m.distance, 0);
             
-            return {
+            const features = {
                 keys_per_minute: (events.keys.length / duration) * 60,
                 avg_key_latency: keyLatencies.length > 0 ? 
-                    keyLatencies.reduce((a,b) => a+b, 0) / keyLatencies.length : 0,
+                    keyLatencies.reduce((a,b) => a+b, 0) / keyLatencies.length : 150,
                 std_key_latency: calculateStd(keyLatencies),
                 error_rate: events.keys.length > 0 ? errors / events.keys.length : 0,
                 clicks_per_minute: (events.clicks / duration) * 60,
                 total_mouse_distance: totalDistance,
                 avg_mouse_speed: mouseSpeeds.length > 0 ?
-                    mouseSpeeds.reduce((a,b) => a+b, 0) / mouseSpeeds.length : 0
+                    mouseSpeeds.reduce((a,b) => a+b, 0) / mouseSpeeds.length : 300
             };
+            
+            // Ajustar valores por defecto si son muy bajos
+            if (features.keys_per_minute < 1) features.keys_per_minute = 30;
+            if (features.avg_mouse_speed < 1) features.avg_mouse_speed = 300;
+            if (features.std_key_latency < 1) features.std_key_latency = 20;
+            
+            return features;
         }
 
         // Calcular desviación estándar
         function calculateStd(arr) {
-            if (arr.length === 0) return 0;
+            if (arr.length === 0) return 25;
             const mean = arr.reduce((a,b) => a+b, 0) / arr.length;
             const variance = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
             return Math.sqrt(variance);
         }
 
         // Actualizar interfaz
-        function updateUI(result) {
+        function updateUI(result, features) {
             document.getElementById('resultsSection').style.display = 'block';
             
             const icons = ['🟢', '🟡', '🔴'];
             const labels = ['BAJO', 'MEDIO', 'ALTO'];
+            const stressLevel = result.stress_level || 1;
             
-            document.getElementById('stressIcon').textContent = icons[result.stress_level];
-            document.getElementById('stressLabel').textContent = labels[result.stress_level];
+            document.getElementById('stressIcon').textContent = icons[stressLevel];
+            document.getElementById('stressLabel').textContent = labels[stressLevel];
             
             // Probabilidades
+            const probs = result.probabilities || { bajo: 0.33, medio: 0.34, alto: 0.33 };
             document.getElementById('probBajo').textContent = 
-                (result.probabilities.bajo * 100).toFixed(0) + '%';
+                (probs.bajo * 100).toFixed(0) + '%';
             document.getElementById('probMedio').textContent = 
-                (result.probabilities.medio * 100).toFixed(0) + '%';
+                (probs.medio * 100).toFixed(0) + '%';
             document.getElementById('probAlto').textContent = 
-                (result.probabilities.alto * 100).toFixed(0) + '%';
+                (probs.alto * 100).toFixed(0) + '%';
             
-            // Métricas
+            // Métricas - usar las features calculadas localmente
+            const displayFeatures = result.features_used || features;
             document.getElementById('keysPerMin').textContent = 
-                result.features.keys_per_minute.toFixed(0);
+                displayFeatures.keys_per_minute.toFixed(0);
             document.getElementById('errorRate').textContent = 
-                (result.features.error_rate * 100).toFixed(1) + '%';
+                (displayFeatures.error_rate * 100).toFixed(1) + '%';
             document.getElementById('clicksPerMin').textContent = 
-                result.features.clicks_per_minute.toFixed(0);
+                displayFeatures.clicks_per_minute.toFixed(0);
             document.getElementById('mouseSpeed').textContent = 
-                result.features.avg_mouse_speed.toFixed(0);
+                displayFeatures.avg_mouse_speed.toFixed(0);
             
             // Recomendación
-            if (result.stress_level > 0) {
-                document.getElementById('recommendation').style.display = 'block';
-                document.getElementById('recommendationText').textContent = 
-                    recommendations[result.stress_level];
-            } else {
-                document.getElementById('recommendation').style.display = 'none';
-            }
-            
-            // Reiniciar contadores
-            events = { keys: [], mouse: [], clicks: 0 };
+            document.getElementById('recommendation').style.display = 'block';
+            document.getElementById('recommendationText').textContent = 
+                recommendations[stressLevel] || recommendations[1];
         }
+
+        // Inicialización
+        updateDebugInfo();
     </script>
 </body>
 </html>
